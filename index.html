@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0e12" />
+  <meta name="description" content="Klasifikasi citra dermatoskopi — Melanoma vs Melanocytic Nevus menggunakan TensorFlow.js" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MelanomaDetection" />
+
+  <title>Melanoma Classifier</title>
+
+  <link rel="manifest" href="manifest.json" />
+
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+<body>
+
+  <div class="wrapper">
+    
+    <header>
+      <h1>Melanoma Detection</h1>
+      <span class="badge">PWA · TF.js</span>
+    </header>
+    <p class="subtitle">Klasifikasi citra dermatoskopi — Melanoma vs Melanocytic Nevus</p>
+
+    <div class="model-bar loading" id="modelBar">
+      <div class="led"></div>
+      <span>Status model: <strong id="modelStatus">Memuat model…</strong></span>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Mode input">
+      <button class="tab-btn active" id="tabUpload" role="tab" aria-selected="true"  aria-controls="panelUpload" onclick="UI.switchTab('upload')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        Upload Gambar
+      </button>
+      <button class="tab-btn" id="tabCam" role="tab" aria-selected="false" aria-controls="panelCam" onclick="UI.switchTab('cam')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M23 7 16 12 23 17z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+        </svg>
+        Live Cam
+      </button>
+    </div>
+
+    <section class="panel active" id="panelUpload" role="tabpanel" aria-labelledby="tabUpload">
+      <div class="grid-2">
+
+        <div class="card">
+          <div class="card-header"><div class="dot"></div> Input Gambar</div>
+          <div class="card-body">
+            <div class="drop-zone" id="dropZone" tabindex="0" role="button" aria-label="Area upload gambar">
+              <input type="file" id="fileInput" accept="image/*" aria-label="Pilih file gambar" />
+              <span class="drop-icon" aria-hidden="true">🔬</span>
+              <p><strong>Klik atau drag &amp; drop</strong><br>JPG, PNG, WEBP — maks 10 MB</p>
+            </div>
+            <div class="loader" id="uploadLoader" role="status" aria-live="polite">
+              <div class="loader-spinner" aria-hidden="true"></div>
+              <span>Mengklasifikasikan…</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="dot"></div> Preview</div>
+          <div class="card-body">
+            <div class="preview-wrap" id="uploadPreviewWrap">
+              <div class="preview-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <circle cx="9" cy="9" r="2"/>
+                  <path d="m21 15-5-5L5 21"/>
+                </svg>
+                <span>Belum ada gambar</span>
+              </div>
+            </div>
+            <canvas id="uploadCanvas" style="display:none" aria-hidden="true"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="result-card" id="uploadResult" role="region" aria-live="polite" aria-label="Hasil klasifikasi upload"></div>
+    </section>
+
+    <section class="panel" id="panelCam" role="tabpanel" aria-labelledby="tabCam">
+      <div class="grid-2">
+
+        <div class="card">
+          <div class="card-header"><div class="dot"></div> Kamera</div>
+          <div class="card-body">
+            <video id="video" autoplay playsinline muted aria-label="Live camera feed"></video>
+            <div class="cam-status" id="camStatus" role="status">
+              <div class="led"></div>
+              <span id="camStatusText">Kamera tidak aktif</span>
+            </div>
+            <div class="capture-row">
+              <button class="btn" id="btnStartCam" onclick="Cam.start()">▶ Aktifkan Kamera</button>
+              <button class="btn primary" id="btnCapture" onclick="Cam.capture()" disabled>⦿ Tangkap &amp; Klasifikasi</button>
+            </div>
+            <div class="loader" id="camLoader" role="status" aria-live="polite">
+              <div class="loader-spinner" aria-hidden="true"></div>
+              <span>Mengklasifikasikan frame…</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="dot"></div> Frame Ditangkap</div>
+          <div class="card-body">
+            <div class="preview-wrap">
+              <canvas id="camDisplayCanvas" aria-label="Frame yang ditangkap dari kamera"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-card" id="camResult" role="region" aria-live="polite" aria-label="Hasil klasifikasi kamera"></div>
+    </section>
+
+  </div>
+
+  <canvas id="camCaptureCanvas" style="display:none" aria-hidden="true"></canvas>
+
+  <script src="js/app.js"></script>
+  <script src="js/register-sw.js"></script>
+
+</body>
+</html>
