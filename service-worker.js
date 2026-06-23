@@ -18,18 +18,17 @@ const SHELL_ASSETS = [
 
 const MODEL_ASSETS = [
   '/model/model.json',
-  '/model/group1-shard1of12.bin',   
-  '/model/group1-shard2of12.bin',   
-  '/model/group1-shard3of12.bin',   
-  '/model/group1-shard4of12.bin',   
-  '/model/group1-shard5of12.bin',   
-  '/model/group1-shard6of12.bin',   
-  '/model/group1-shard7of12.bin',   
-  '/model/group1-shard8of12.bin',   
-  '/model/group1-shard9of12.bin',   
-  '/model/group1-shard10of12.bin',   
-  '/model/group1-shard11of12.bin',   
-  '/model/group1-shard12of12.bin',   
+  '/model/group1-shard1of11.bin',   
+  '/model/group1-shard2of11.bin',   
+  '/model/group1-shard3of11.bin',   
+  '/model/group1-shard4of11.bin',   
+  '/model/group1-shard5of11.bin',   
+  '/model/group1-shard6of11.bin',   
+  '/model/group1-shard7of11.bin',   
+  '/model/group1-shard8of11.bin',   
+  '/model/group1-shard9of11.bin',   
+  '/model/group1-shard10of11.bin',   
+  '/model/group1-shard11of11.bin',      
 ];
 
 const CDN_HOSTS = [

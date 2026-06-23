@@ -3,6 +3,8 @@
 const CONFIG = {
   modelUrl:  'model/model.json',
   inputSize: 300,
+  // PENTING: urutan harus cocok dengan CLASS_NAMES di Colab
+  // Colab: classes=['melanoma', 'melanocytic nevus'] → index 0=melanoma, 1=nevus
   classes:   ['Melanoma', 'Melanocytic Nevus'],
 };
 
@@ -19,31 +21,28 @@ const ModelLoader = (() => {
     document.getElementById('modelStatus').textContent = text;
   }
 
-  function buildDummyModel() {
-    const m = tf.sequential();
-    m.add(tf.layers.flatten({ inputShape: [CONFIG.inputSize, CONFIG.inputSize, 3] }));
-    m.add(tf.layers.dense({ units: CONFIG.classes.length, activation: 'softmax' }));
-    return m;
-  }
-
   async function load() {
     setStatus('loading', 'Memuat model TensorFlow.js…');
     try {
-      // FIX: langsung tf.loadLayersModel, biarkan TF.js handle cache/fetch sendiri
-      model = await tf.loadLayersModel(CONFIG.modelUrl);
+      // FIX: gunakan tf.loadGraphModel jika model dikonversi via tfjs_converter
+      // atau tf.loadLayersModel jika via save_keras_model
+      model = await tf.loadGraphModel(CONFIG.modelUrl);
 
-      // Warmup inference
-      const warmup = tf.zeros([1, CONFIG.inputSize, CONFIG.inputSize, 3]);
+      // Warmup inference — pastikan output shape benar
+      const warmup    = tf.zeros([1, CONFIG.inputSize, CONFIG.inputSize, 3]);
       const warmupOut = model.predict(warmup);
+      const warmupData = await warmupOut.data();
+      
+      console.info('[ModelLoader] Warmup output:', Array.from(warmupData));
+      console.info('[ModelLoader] Output shape:', warmupOut.shape);
+      
       warmupOut.dispose();
       warmup.dispose();
 
       setStatus('ready', `Model siap · input ${CONFIG.inputSize}×${CONFIG.inputSize}`);
-      console.info('[ModelLoader] Model dimuat, output shape:', model.outputs[0].shape);
     } catch (err) {
-      console.warn('[ModelLoader] Gagal memuat model, menggunakan dummy:', err.message);
-      model = buildDummyModel();
-      setStatus('error', 'Demo mode (model dummy) — ' + err.message);
+      console.error('[ModelLoader] Gagal memuat model:', err);
+      setStatus('error', 'Gagal memuat model — ' + err.message);
     }
   }
 
@@ -53,29 +52,29 @@ const ModelLoader = (() => {
 // ── Classifier ───────────────────────────────────────────────
 const Classifier = (() => {
 
-  // FIX: EfficientNet preprocess_input: pixel → [0,255] → (x/127.5) - 1 → [-1, 1]
-  function efficientnetPreprocess(tensor) {
-    return tensor.div(127.5).sub(1.0);
-  }
-
+  // EfficientNet preprocess_input: (x / 127.5) - 1 → range [-1, 1]
+  // Sama persis dengan keras efficientnet.preprocess_input
   async function classify(source) {
     if (!model) throw new Error('Model belum dimuat.');
 
     const inputTensor = tf.tidy(() => {
-      return tf.browser.fromPixels(source)
+      return tf.browser.fromPixels(source)   // uint8 [0, 255], shape [H, W, 3]
         .resizeBilinear([CONFIG.inputSize, CONFIG.inputSize])
         .toFloat()
-        .pipe(efficientnetPreprocess)   // ← FIX: normalisasi ke [-1, 1]
-        .expandDims(0);
+        .div(tf.scalar(127.5))
+        .sub(tf.scalar(1.0))
+        .expandDims(0);                      // shape [1, 300, 300, 3]
     });
 
     const predTensor = model.predict(inputTensor);
-    const data       = await predTensor.data();   // Float32Array
+    const data       = await predTensor.data();
 
     inputTensor.dispose();
     predTensor.dispose();
 
-    return Array.from(data);   // kembalikan sebagai Array biasa
+    const scores = Array.from(data);
+    console.log('[Classifier] Raw scores:', scores);   // debug — lihat di DevTools
+    return scores;
   }
 
   return { classify };
@@ -156,7 +155,6 @@ const Upload = (() => {
     img.src = URL.createObjectURL(file);
     wrap.appendChild(img);
 
-    // FIX: tangkap error decode gambar
     try {
       await img.decode();
     } catch {
@@ -165,10 +163,12 @@ const Upload = (() => {
       return;
     }
 
+    // FIX: gambar di-resize via canvas ke 300x300 sebelum classify
+    // agar tf.browser.fromPixels mendapat dimensi yang konsisten
     const canvas = document.getElementById('uploadCanvas');
-    canvas.width  = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    canvas.getContext('2d').drawImage(img, 0, 0);
+    canvas.width  = CONFIG.inputSize;
+    canvas.height = CONFIG.inputSize;
+    canvas.getContext('2d').drawImage(img, 0, 0, CONFIG.inputSize, CONFIG.inputSize);
 
     UI.showLoader(LOADER_ID);
     UI.hideResult(RESULT_ID);
@@ -288,15 +288,17 @@ const Cam = (() => {
       return;
     }
 
+    // FIX: capture langsung ke ukuran 300x300
     const captureCanvas  = document.getElementById('camCaptureCanvas');
-    captureCanvas.width  = vid.videoWidth;
-    captureCanvas.height = vid.videoHeight;
-    captureCanvas.getContext('2d').drawImage(vid, 0, 0);
+    captureCanvas.width  = CONFIG.inputSize;
+    captureCanvas.height = CONFIG.inputSize;
+    captureCanvas.getContext('2d').drawImage(vid, 0, 0, CONFIG.inputSize, CONFIG.inputSize);
 
+    // Update display canvas (tetap ukuran asli untuk tampilan)
     const displayCanvas = document.getElementById('camDisplayCanvas');
-    displayCanvas.getContext('2d').drawImage(
-      captureCanvas, 0, 0, displayCanvas.width, displayCanvas.height
-    );
+    if (!displayCanvas.width) displayCanvas.width = vid.videoWidth;
+    if (!displayCanvas.height) displayCanvas.height = vid.videoHeight;
+    displayCanvas.getContext('2d').drawImage(vid, 0, 0, displayCanvas.width, displayCanvas.height);
 
     UI.showLoader(LOADER_ID);
     UI.hideResult(RESULT_ID);
